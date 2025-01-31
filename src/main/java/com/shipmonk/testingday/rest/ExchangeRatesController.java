@@ -31,9 +31,14 @@ public class ExchangeRatesController {
     private final ExchangeRateService exchangeRate;
 
     @GetMapping(path = "/{day}")
-    public ResponseEntity<ExchangeRatesDto> getRates(@Valid @Pattern(regexp = dayPattern) @PathVariable("day") String day) {
+    public ResponseEntity<ExchangeRatesDto> getDayRates(@Valid @Pattern(regexp = dayPattern) @PathVariable("day") String day) {
         return ResponseEntity.ok()
-            .body(exchangeRate.getOne(day));
+            .body(exchangeRate.getByDay(day));
     }
 
+    @GetMapping()
+    public ResponseEntity<ExchangeRatesDto> getLatestRates() {
+        return ResponseEntity.ok()
+            .body(exchangeRate.getLatest());
+    }
 }

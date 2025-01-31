@@ -10,32 +10,32 @@ import java.util.concurrent.CountDownLatch;
 
 import javax.inject.Inject;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
-import com.shipmonk.testingday.config.ExchangeRateApplicationTestConfiguration;
 import com.shipmonk.testingday.dtos.ExchangeRatesDto;
 import com.shipmonk.testingday.exception.AccessDeniedException;
 import com.shipmonk.testingday.exception.BadRequestException;
 import com.shipmonk.testingday.exception.NotFoundException;
 import com.shipmonk.testingday.exception.ServiceUnavailableException;
 import com.shipmonk.testingday.service.ExchangeRateService;
+import com.shipmonk.testingday.spring.ExchangeRateApplicationTestConfiguration;
 
 import lombok.extern.slf4j.Slf4j;
 
 @SpringBootTest(webEnvironment = WebEnvironment.DEFINED_PORT)
 @Import(ExchangeRateApplicationTestConfiguration.class)
 @Slf4j
+@ActiveProfiles("test")
 class TestingdayExchangeRatesApplicationTests {
 
     private @Inject WebTestClient webTestClient;
@@ -54,9 +54,9 @@ class TestingdayExchangeRatesApplicationTests {
     }
 
     @Test
-    void fixerCall() {
-        String day = "2022-12-03";
-        ExchangeRatesDto responseBody = callAndGetResponse(day)
+    void getByDay() {
+        String aDay = "2022-12-03";
+        ExchangeRatesDto responseBody = callAndGetResponse(aDay)
             .expectHeader()
             .contentType(MediaType.APPLICATION_JSON_VALUE)
             .expectStatus()
@@ -64,41 +64,40 @@ class TestingdayExchangeRatesApplicationTests {
             .expectBody(ExchangeRatesDto.class)
             .returnResult()
             .getResponseBody();
-
-        assertThat(responseBody.getDate()).isEqualTo(LocalDate.parse(day));
+        assertThat(responseBody.getDate()).isEqualTo(LocalDate.parse(aDay));
     }
 
     @Test
-    void exceptionHandling() {
-        String day = "2022-12-03";
+    void httpErrorAndExceptionHandling() {
+        String aDay = "2022-12-03";
         reset(exchangeRateService);
-        when(exchangeRateService.getOne(day)).thenThrow(new BadRequestException("Custom bad request"));
-        callAndGetResponse(day)
+        when(exchangeRateService.getByDay(aDay)).thenThrow(new BadRequestException("Custom bad request"));
+        callAndGetResponse(aDay)
             .expectStatus()
             .isBadRequest();
 
         reset(exchangeRateService);
-        day = "abcd";
-        callAndGetResponse(day)
+        aDay = "abcd";
+        callAndGetResponse(aDay)
             .expectStatus()
             .isBadRequest();
 
-        day = "2024-12-12";
+        aDay = "2024-12-12";
         reset(exchangeRateService);
-        when(exchangeRateService.getOne(day)).thenThrow(new NotFoundException("Data for " + day + " not found"));
-        callAndGetResponse(day)
+        when(exchangeRateService.getByDay(aDay)).thenThrow(new NotFoundException("Data for " + aDay + " not found"));
+        callAndGetResponse(aDay)
             .expectStatus()
             .isNotFound();
 
         reset(exchangeRateService);
-        when(exchangeRateService.getOne(day)).thenThrow(new ServiceUnavailableException("Service currently unavailable"));
-        callAndGetResponse(day)
+        when(exchangeRateService.getByDay(aDay)).thenThrow(new ServiceUnavailableException("Service currently unavailable"));
+        callAndGetResponse(aDay)
             .expectStatus()
             .is5xxServerError();
 
         reset(exchangeRateService);
-        when(exchangeRateService.getOne(day)).thenThrow(new AccessDeniedException("Unauthorized request to the provider"));
-        callAndGetResponse(day)
+        when(exchangeRateService.getByDay(aDay)).thenThrow(new AccessDeniedException("Unauthorized request to the provider"));
+        callAndGetResponse(aDay)
             .expectStatus()
             .isUnauthorized();
 

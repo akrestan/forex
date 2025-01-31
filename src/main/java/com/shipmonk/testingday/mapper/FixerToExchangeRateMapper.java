@@ -5,7 +5,7 @@ import org.mapstruct.MappingConstants;
 import org.mapstruct.ReportingPolicy;
 
 import com.shipmonk.testingday.dtos.ExchangeRatesDto;
-import com.shipmonk.testingday.dtos.FixerResponse;
+import com.shipmonk.testingday.fixer.FixerResponse;
 
 /**
  * @author Ales Krestan

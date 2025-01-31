@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import com.shipmonk.testingday.exception.AccessDeniedException;
 import com.shipmonk.testingday.exception.BadRequestException;
+import com.shipmonk.testingday.exception.ExchangeRateException;
 import com.shipmonk.testingday.exception.NotFoundException;
-import com.shipmonk.testingday.exception.ServiceUnavailableException;
 import com.shipmonk.testingday.rest.ErrorResponse;
 
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +38,8 @@ public class RestExceptionHandler {
     }
 
     // our
-    @ExceptionHandler({ ServiceUnavailableException.class })
-    public ResponseEntity<ErrorResponse> handleServiceUnavailable(Exception e, HttpServletRequest request) {
+    @ExceptionHandler(ExchangeRateException.class)
+    public ResponseEntity<ErrorResponse> handleExchangeRateException(Exception e, HttpServletRequest request) {
         return respondWith(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), causeMessageOrEmpty(e), request);
     }
 

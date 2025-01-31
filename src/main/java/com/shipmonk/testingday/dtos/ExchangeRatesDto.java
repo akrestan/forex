@@ -1,5 +1,6 @@
 package com.shipmonk.testingday.dtos;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
 
@@ -19,10 +20,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ExchangeRatesDto {
 
-    private boolean success;
     private long timestamp;
     private String base;
     private LocalDate date;
-    private Map<String, Double> rates;
+    private Map<String, BigDecimal> rates;
 
 }

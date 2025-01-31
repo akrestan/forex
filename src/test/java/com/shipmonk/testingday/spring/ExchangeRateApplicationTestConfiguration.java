@@ -1,4 +1,4 @@
-package com.shipmonk.testingday.config;
+package com.shipmonk.testingday.spring;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
