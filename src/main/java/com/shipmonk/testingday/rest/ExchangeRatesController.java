@@ -32,13 +32,13 @@ public class ExchangeRatesController {
 
     @GetMapping(path = "/{day}")
     public ResponseEntity<ExchangeRatesDto> getDayForBaseRates(@Valid @Pattern(regexp = dayPattern) @PathVariable("day") String day,
-                                                               @RequestParam Optional<String> baseCurrencyOpt) {
+                                                               @RequestParam("baseCurrency") Optional<String> baseCurrencyOpt) {
         return ResponseEntity.ok()
             .body(exchangeRate.getForDayAndBase(day, baseCurrencyOpt.orElse(DEFAULT_BASE_CURRENCY)));
     }
 
     @GetMapping("/latest")
-    public ResponseEntity<ExchangeRatesDto> getLatestRates(@RequestParam Optional<String> baseCurrencyOpt) {
+    public ResponseEntity<ExchangeRatesDto> getLatestRates(@RequestParam("baseCurrency") Optional<String> baseCurrencyOpt) {
         return ResponseEntity.ok()
             .body(exchangeRate.getLatest(baseCurrencyOpt.orElse(DEFAULT_BASE_CURRENCY)));
     }
