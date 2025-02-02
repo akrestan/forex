@@ -5,6 +5,8 @@ package com.shipmonk.testingday.fixer;
  */
 public interface FixerClient {
 
-    FixerResponse getLatest();
+    FixerResponse getLatest(String baseCurrency);
+
+    FixerResponse getByDayAndBaseCurrency(String day, String baseCurrency);
 
 }

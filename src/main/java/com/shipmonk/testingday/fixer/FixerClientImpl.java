@@ -1,12 +1,14 @@
 package com.shipmonk.testingday.fixer;
 
 import java.io.IOException;
+import java.util.Map;
 
 import javax.xml.bind.DataBindingException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -32,17 +34,33 @@ public class FixerClientImpl implements FixerClient {
     private final ObjectMapper objectMapper;
 
     @Override
-    public FixerResponse getLatest() {
-        //        WebClient clonedWebClient = webClient.mutate().defaultHeader(HttpHeaders.CONTENT_TYPE, jsonCharUtf8.toString()).build();
-        WebClient clonedWebClient = webClient.mutate().build();
-        byte[] responseBytes = clonedWebClient.get()
-            .uri(uriBuilder -> uriBuilder
-                .path("/api/latest")
-                .queryParam("access_key", "{access_key}")
-                .build())
-            //            .accept(parseMediaType("application/json;charset=UTF-8"), parseMediaType("application/json; Charset=UTF-8"))
-            //            .acceptCharset(StandardCharsets.UTF_8)
-            .retrieve()
+    public FixerResponse getLatest(String baseCurrency) {
+        RequestHeadersSpec<?> reqHeaderSpec = webClient.get()
+            .uri(uriBuilder -> {
+                uriBuilder
+                    .path("/api/latest")
+                    .queryParam("access_key", "{access_key}")
+                    .queryParam("base", "{base}");
+                return uriBuilder.build(Map.of("base", baseCurrency));
+            });
+        return exchangeAndHandleFixerResponse(reqHeaderSpec);
+    }
+
+    @Override
+    public FixerResponse getByDayAndBaseCurrency(String day, String baseCurrency) {
+        RequestHeadersSpec<?> reqHeaderSpec = webClient.get()
+            .uri(uriBuilder -> {
+                uriBuilder
+                    .path("/api/{day}")
+                    .queryParam("access_key", "{access_key}")
+                    .queryParam("base", "{base}");
+                return uriBuilder.build(Map.of("day", day, "base", baseCurrency));
+            });
+        return exchangeAndHandleFixerResponse(reqHeaderSpec);
+    }
+
+    private FixerResponse exchangeAndHandleFixerResponse(RequestHeadersSpec<?> reqHeaderSpec) {
+        byte[] responseBytes = reqHeaderSpec.retrieve()
             .onStatus(HttpStatus::is4xxClientError, clientResponse -> {
                 HttpStatus status = clientResponse.statusCode();
                 switch (status) {
@@ -75,10 +93,12 @@ public class FixerClientImpl implements FixerClient {
             try {
                 FixerError fixerError = objectMapper.readValue(responseBytes, FixerError.class);
                 if (!fixerError.isSuccess()) {
-                    if (fixerError.getError().code == 101) {
-                        throw new AccessDeniedException("Fixer access error: " + fixerError.getError());
-                    } else {
-                        throw new FixerClientException("Error calling Fixer " + fixerError.getError());
+                    switch (fixerError.getError().code) {
+                        case 101:
+                            throw new AccessDeniedException("Fixer access error: " + fixerError.getError());
+                            //TODO: additional error codes handling goes here:
+                        default:
+                            throw new FixerClientException("Error calling Fixer " + fixerError.getError());
                     }
                 }
                 throw new ExchangeRateException("Unknown Fixer error", ex1);

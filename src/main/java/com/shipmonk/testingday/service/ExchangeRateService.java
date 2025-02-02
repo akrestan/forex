@@ -1,19 +1,24 @@
 package com.shipmonk.testingday.service;
 
 import java.math.BigDecimal;
-import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
-import java.util.Date;
+import java.util.EventObject;
 import java.util.Map;
+import java.util.Objects;
 
+import org.jooq.lambda.Seq;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.shipmonk.testingday.dtos.ExchangeRatesDto;
-import com.shipmonk.testingday.exception.BadRequestException;
+import com.shipmonk.testingday.entity.CurrencyRate;
+import com.shipmonk.testingday.entity.DayBase;
 import com.shipmonk.testingday.fixer.FixerClient;
 import com.shipmonk.testingday.fixer.FixerResponse;
-import com.shipmonk.testingday.mapper.FixerToExchangeRateMapper;
+import com.shipmonk.testingday.mapper.ExchangeRateMapper;
+import com.shipmonk.testingday.repository.DayBaseRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,51 +27,80 @@ import lombok.extern.slf4j.Slf4j;
  * @author Ales Krestan
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class ExchangeRateService {
 
-    private final FixerToExchangeRateMapper mapper;
+    private final ApplicationEventPublisher eventBusDispatcher;
+    private final DayBaseRepository dayBaseRepository;
+    private final ExchangeRateMapper mapper;
     private final FixerClient fixerClient;
 
-    public ExchangeRatesDto getLatest() {
-        return mapper.toDto(fixerClient.getLatest());
+    public ExchangeRatesDto getLatest(String baseCurrency) {
+        FixerResponse latest = fixerClient.getLatest(baseCurrency);
+        var day = latest.getDate();
+        var baseCode = latest.getBase();
+        DayBase dayBase = dayBaseRepository.findByDayAndBaseCode(day, baseCode)
+            .orElse(DayBase.builder()
+                .day(day)
+                .baseCode(baseCode)
+                .obtainedAt(Instant.ofEpochSecond(latest.getTimestamp()))
+                .build());
+        eventBusDispatcher.publishEvent(new DataEvent(this, dayBase, latest.getRates()));
+        return mapper.fromFixerResponse(latest);
     }
 
-    public ExchangeRatesDto getByDay(String day) {
-        FixerResponse aFixerResponse = dummyFixerResponse();
+    public ExchangeRatesDto getForDayAndBase(String forDay, String baseCurrency) {
+
+        return dayBaseRepository.findByDayAndBaseCode(forDay, baseCurrency)
+            .map(mapper::fromEntity)
+            .orElseGet(() -> {
+                FixerResponse retrieved = fixerClient.getByDayAndBaseCurrency(forDay, baseCurrency);
+                var day = retrieved.getDate();
+                var baseCode = retrieved.getBase();
+                DayBase dayBase = DayBase.builder()
+                    .day(day)
+                    .baseCode(baseCode)
+                    .obtainedAt(Instant.ofEpochSecond(retrieved.getTimestamp()))
+                    .build();
+                eventBusDispatcher.publishEvent(new DataEvent(this, dayBase, retrieved.getRates()));
+                return mapper.fromFixerResponse(retrieved);
+            });
+    }
+
+    @EventListener
+    @Async
+    public void handleNewRatesData(DataEvent event) {
         try {
-            aFixerResponse.setDate(day);
-        } catch (DateTimeParseException dtpe) {
-            log.error("Error parsing date {}, reason {}", day, dtpe.getMessage());
-            throw new BadRequestException("Error parsing date " + day, dtpe);
+            DayBase dayBase = event.dayBase;
+            dayBase.setCurrencyRates(Seq.seq(event.currencyRates.entrySet())
+                .map(entry ->
+                    CurrencyRate.builder()
+                        .dayBase(event.dayBase)
+                        .code(entry.getKey())
+                        .rate(entry.getValue())
+                        .build())
+                .toSet());
+            dayBaseRepository.save(dayBase);
+        } catch (Exception e) {
+            log.error("Error saving data from event {}", event, e);
         }
-        return mapper.toDto(aFixerResponse);
-    }
-
-    /**
-     * dummy
-     */
-    public ExchangeRatesDto getDummyFixerResponse() {
-        return mapper.toDto(dummyFixerResponse());
-    }
-
-    private FixerResponse dummyFixerResponse() {
-
-        long timestamp = Instant.now().toEpochMilli();
-        Date date = new Date(timestamp);
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-
-        return FixerResponse.builder()
-            .base("EUR")
-            .success(true)
-            .timestamp(timestamp)
-            .date(formatter.format(date))
-            .rates(Map.of("CAD", BigDecimal.valueOf(1.260046),
-                "CHF", BigDecimal.valueOf(0.933058),
-                "USD", BigDecimal.valueOf(1.23461),
-                "GBP", BigDecimal.valueOf(0.919154)))
-            .build();
     }
 
 }
+
+class DataEvent extends EventObject {
+
+    final DayBase dayBase;
+    final Map<String, BigDecimal> currencyRates;
+
+    public DataEvent(Object source, DayBase dayBase, Map<String, BigDecimal> currencyRates) {
+        super(source);
+        Objects.requireNonNull(dayBase);
+        Objects.requireNonNull(currencyRates);
+        this.dayBase = dayBase;
+        this.currencyRates = currencyRates;
+    }
+
+}
+

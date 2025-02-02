@@ -1,15 +1,14 @@
 package com.shipmonk.testingday.rest;
 
+import java.util.Optional;
+
 import javax.validation.Valid;
 import javax.validation.constraints.Pattern;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.shipmonk.testingday.dtos.ExchangeRatesDto;
 import com.shipmonk.testingday.service.ExchangeRateService;
@@ -27,18 +26,21 @@ public class ExchangeRatesController {
 
     //TODO could be improved
     private static final String dayPattern = "^(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$";
+    public static final String DEFAULT_BASE_CURRENCY = "EUR";
 
     private final ExchangeRateService exchangeRate;
 
     @GetMapping(path = "/{day}")
-    public ResponseEntity<ExchangeRatesDto> getDayRates(@Valid @Pattern(regexp = dayPattern) @PathVariable("day") String day) {
+    public ResponseEntity<ExchangeRatesDto> getDayForBaseRates(@Valid @Pattern(regexp = dayPattern) @PathVariable("day") String day,
+                                                               @RequestParam Optional<String> baseCurrencyOpt) {
         return ResponseEntity.ok()
-            .body(exchangeRate.getByDay(day));
+            .body(exchangeRate.getForDayAndBase(day, baseCurrencyOpt.orElse(DEFAULT_BASE_CURRENCY)));
     }
 
-    @GetMapping()
-    public ResponseEntity<ExchangeRatesDto> getLatestRates() {
+    @GetMapping("/latest")
+    public ResponseEntity<ExchangeRatesDto> getLatestRates(@RequestParam Optional<String> baseCurrencyOpt) {
         return ResponseEntity.ok()
-            .body(exchangeRate.getLatest());
+            .body(exchangeRate.getLatest(baseCurrencyOpt.orElse(DEFAULT_BASE_CURRENCY)));
     }
+
 }
